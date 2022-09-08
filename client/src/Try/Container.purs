@@ -13,12 +13,14 @@ import Data.String as String
 import Data.String (Pattern(..))
 import Data.String.Regex as Regex
 import Data.String.Regex.Flags as RegexFlags
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff, Milliseconds(..), delay, makeAff)
 import Effect.Aff as Aff
 import Effect.Class.Console (error)
 import Effect.Uncurried (EffectFn3, runEffectFn3)
 import Partial.Unsafe (unsafeCrashWith)
+import Foreign.Object as Object
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -30,7 +32,7 @@ import Try.Editor (MarkerType(..), toStringMarkerType)
 import Try.Editor as Editor
 import Try.Gist (getGistById, tryLoadFileFromGist)
 import Try.GitHub (getRawGitHubFile)
-import Try.QueryString (compressToEncodedURIComponent, decompressFromEncodedURIComponent, getQueryStringMaybe, setQueryString)
+import Try.QueryString (compressToEncodedURIComponent, decompressFromEncodedURIComponent, getQueryStringMaybe, setQueryString, setQueryStrings)
 import Try.SharedConfig as SharedConfig
 import Type.Proxy (Proxy(..))
 import Web.HTML (window)
@@ -73,6 +75,12 @@ parseViewModeParam = case _ of
   "code" -> Just Code
   "output" -> Just Output
   _ -> Nothing
+
+encodeViewModeParam :: ViewMode -> String
+encodeViewModeParam = case _ of
+  SideBySide -> "sidebyside"
+  Code -> "code"
+  Output -> "output"
 
 data Action
   = Initialize
@@ -134,6 +142,12 @@ component = H.mkComponent
     UpdateSettings k -> do
       old <- H.get
       new <- H.modify \state -> state { settings = k state.settings }
+      H.liftEffect do
+        setQueryStrings $ Object.fromFoldable
+          [ Tuple "view" (encodeViewModeParam new.settings.viewMode)
+          , Tuple "js" (show new.settings.showJs)
+          , Tuple "compile" (show new.settings.autoCompile)
+          ]
       when (old.settings.showJs /= new.settings.showJs) do
         if new.settings.showJs then
           H.liftEffect teardownIFrame
